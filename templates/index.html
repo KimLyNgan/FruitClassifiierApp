@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ứng dụng Phân loại Ảnh (Flask ONNX)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            text-align: center; /* Căn giữa nội dung chính */
+        }
+        .container {
+             max-width: 500px; /* Chiều rộng tối đa */
+             margin: 20px auto; /* Căn giữa và tạo khoảng trống */
+             padding: 20px;
+             border: 1px solid #ccc; /* Viền nhẹ */
+             border-radius: 8px; /* Bo góc */
+             box-shadow: 2px 2px 12px rgba(0,0,0,0.1); /* Đổ bóng */
+             background-color: #f9f9f9; /* Nền container */
+             text-align: left; /* Nội dung bên trong căn trái lại */
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+        #imagePreview {
+            margin-top: 15px;
+            text-align: center; /* Căn giữa ảnh */
+        }
+        #uploadedImage {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            display: none; /* Ban đầu ẩn ảnh đi */
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #eee;
+            background-color: #fff;
+            min-height: 1.5em; /* Chiều cao tối thiểu */
+            font-weight: bold;
+            text-align: center; /* Căn giữa kết quả */
+        }
+        /* Thêm style cho file input và button nếu muốn */
+        input[type="file"], button {
+            margin-top: 10px;
+        }
+        .classes-table {
+            width: 100%; /* Chiều rộng bảng bằng container */
+            border-collapse: collapse; /* Gộp các đường viền ô */
+            margin-top: 15px; /* Khoảng cách với tiêu đề */
+            font-size: 0.9em;
+        }
+
+        .classes-table td {
+            border: 1px solid #ddd; /* Viền ô */
+            padding: 8px; /* Khoảng trống bên trong ô */
+            text-align: center; /* Căn giữa nội dung ô */
+            width: calc(100% / 6); /* Chia đều chiều rộng cho 6 cột */
+        }
+
+        .classes-table tr:nth-child(even) {
+            background-color: #f2f2f2; /* Tô màu xen kẽ các hàng */
+        }
+        .example-images-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee; /* Đường kẻ phân cách */
+            text-align: center;
+        }
+
+        .example-images-grid {
+            display: grid; /* Sử dụng CSS Grid */
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); /* Tự động tạo cột, chiều rộng tối thiểu 100px */
+            gap: 10px; /* Khoảng cách giữa các ảnh */
+            margin-top: 15px;
+            justify-items: center; /* Căn giữa ảnh trong mỗi ô grid */
+        }
+
+        .example-image-item {
+            cursor: pointer; /* Con trỏ hình bàn tay khi di chuột qua ảnh */
+            border: 2px solid transparent; /* Viền ban đầu trong suốt */
+            border-radius: 5px;
+            transition: border-color 0.2s ease; /* Hiệu ứng chuyển màu viền */
+            padding: 5px; /* Khoảng đệm quanh ảnh */
+            background-color: #fff;
+            box-shadow: 1px 1px 5px rgba(0,0,0,0.1); /* Đổ bóng nhẹ */
+        }
+
+        .example-image-item:hover {
+            border-color: #8fbc8f; /* Đổi màu viền khi hover */
+        }
+
+        .example-image-item img {
+            display: block; /* Ảnh không có khoảng trắng dưới */
+            max-width: 100px; /* Chiều rộng tối đa của ảnh thumbnail */
+            height: 100px; /* Chiều cao cố định */
+            object-fit: cover; /* Cắt ảnh để vừa với kích thước */
+            border-radius: 3px;
+        }
+        .url-prediction-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee; /* Đường kẻ phân cách */
+            text-align: center;
+        }
+
+        .url-input-group {
+            margin-top: 15px;
+        }
+
+        .url-input-group input[type="text"] {
+            width: calc(100% - 120px); /* Chiều rộng input, trừ đi nút */
+            padding: 10px;
+            font-size: 1em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-right: 10px; /* Khoảng cách với nút */
+            box-sizing: border-box; /* Đảm bảo padding không làm tăng chiều rộng */
+        }
+
+        .url-input-group button {
+             padding: 10px 15px; /* Kích thước nút */
+             font-size: 1em;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Mô hình phân loại Trái cây & Rau củ</h1>
+        <h2>EfficientNet B0</h2>
+
+        <div class="classes-list" style="margin-bottom: 30px;">
+            <h3>Mô hình có thể phân loại 30 loại sau:</h3>
+            <table class="classes-table">
+                <tbody>
+                    {% for class_name in classes %}
+                        {% if loop.index0 % 6 == 0 %}
+                            <tr>
+                        {% endif %}
+                        <td>{{ class_name }}</td>
+                        {% if loop.index % 6 == 0 or loop.last %}
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="upload-section">
+            <p>Chọn một file ảnh trái cây hoặc rau củ để dự đoán:</p>
+            <input type="file" id="imageUpload" accept="image/*">
+            <button onclick="uploadImage()">Dự đoán Ảnh Tải Lên</button> {# Đổi tên nút cho rõ ràng #}
+        </div>
+
+        <div id="imagePreview">
+            <img id="uploadedImage" src="#" alt="Xem trước ảnh">
+        </div>
+       <div class="url-prediction-section">
+            <h3>Hoặc dán URL ảnh từ Internet:</h3>
+            <div class="url-input-group">
+                <input type="text" id="imageUrlInput" placeholder="Dán URL ảnh vào đây...">
+                <button onclick="predictImageUrl()">Dự đoán từ URL</button>
+            </div>
+             <div id="imageUrlPreview">
+                <img id="fetchedImage" src="#" alt="Ảnh từ URL">
+             </div>
+        </div>
+        <div class="example-images-section">
+            <h3>Hoặc chọn ảnh mẫu để thử nhanh:</h3>
+            <div class="example-images-grid">
+                {# Jinja2 loop để lặp qua danh sách tên file ảnh mẫu #}
+                {% for example_image_filename in example_images %}
+                    <div class="example-image-item" data-filename="{{ example_image_filename }}">
+                        {# url_for('static', filename=...) tạo URL đến file trong thư mục static #}
+                        <img src="{{ url_for('static', filename='examples/' + example_image_filename) }}" alt="{{ example_image_filename }}">
+                        {# Có thể thêm tên file hoặc tên lớp nếu muốn hiển thị dưới ảnh #}
+                        {# <p style="font-size: 0.8em; margin-top: 5px;">{{ example_image_filename }}</p> #}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div id="result">
+            Vui lòng chọn ảnh và nhấn Dự đoán.
+        </div>
+    </div> <script>
+        // Lấy các phần tử HTML
+        const imageUpload = document.getElementById('imageUpload');
+        const uploadedImage = document.getElementById('uploadedImage');
+        const resultDiv = document.getElementById('result');
+        const exampleImageItems = document.querySelectorAll('.example-image-item');
+        const imageUrlInput = document.getElementById('imageUrlInput');
+        const imageUrlPreview = document.getElementById('imageUrlPreview'); // Div chứa ảnh preview từ URL
+        const fetchedImage = document.getElementById('fetchedImage'); // Ảnh preview từ URL
+
+
+        // --- Event listener để hiển thị ảnh đã chọn (Preview) - giữ nguyên ---
+        imageUpload.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    uploadedImage.src = e.target.result;
+                    uploadedImage.style.display = 'block';
+                    fetchedImage.style.display = 'none'; // Ẩn ảnh từ URL nếu có
+                    resultDiv.innerHTML = 'Vui lòng chọn ảnh và nhấn Dự đoán.';
+                }
+                reader.readAsDataURL(file);
+            } else {
+                uploadedImage.src = '#';
+                uploadedImage.style.display = 'none';
+                resultDiv.innerHTML = 'Vui lòng chọn ảnh và nhấn Dự đoán.';
+            }
+            imageUrlInput.value = '';
+            fetchedImage.style.display = 'none';
+        });
+
+        // --- Hàm GỬI DỮ LIỆU ẢNH đến Backend và xử lý Response ---
+        // Tách logic xử lý gửi request và response thành một hàm riêng
+        async function sendImageForPrediction(imageFileOrBlob, filename) {
+             // imageFileOrBlob có thể là File object từ input hoặc Blob/File tạo từ ảnh mẫu
+            if (!imageFileOrBlob) {
+                 resultDiv.innerText = "Không có dữ liệu ảnh để gửi.";
+                 return;
+            }
+
+            // Hiển thị trạng thái chờ
+            resultDiv.innerText = `Đang tải lên và xử lý ảnh "${filename}"...`;
+            resultDiv.style.color = "#555";
+
+            // Tạo FormData
+            const formData = new FormData();
+            // 'file' là key, PHẢI KHỚP với tên tham số trong API Flask POST /predict
+            formData.append('file', imageFileOrBlob, filename); // Thêm filename khi append Blob/File
+
+
+            try {
+                // Gửi yêu cầu POST đến Flask backend endpoint /predict
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                // Kiểm tra mã trạng thái HTTP
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: `Server trả về lỗi ${response.status}, không phân tích được nội dung lỗi.` }));
+                    resultDiv.innerText = `Lỗi (${response.status}): ${errorData.error || 'Lỗi không xác định từ server'}`;
+                    resultDiv.style.color = "red";
+                    console.error('Lỗi API Backend:', response.status, errorData);
+                    return;
+                }
+
+                // Đọc nội dung JSON
+                const predictionResult = await response.json();
+
+                // --- BƯỚC Xử lý và hiển thị kết quả dự đoán ---
+                console.log(">>> Frontend đã nhận được JSON:", predictionResult);
+
+                if (predictionResult && predictionResult.predicted_class_name !== undefined) {
+                    resultDiv.innerHTML = `Dự đoán: <strong>${predictionResult.predicted_class_name}</strong> (Độ tin cậy: ${predictionResult.confidence_score.toFixed(4)})`;
+                    resultDiv.style.color = "green";
+                } else {
+                    resultDiv.innerText = "Lỗi: Backend không trả về định dạng kết quả dự đoán hợp lệ.";
+                    resultDiv.style.color = "orange";
+                    console.error("Frontend: Định dạng JSON từ Backend không khớp:", predictionResult);
+                }
+
+            } catch (error) {
+                resultDiv.innerText = `Đã xảy ra lỗi kết nối hoặc xử lý: ${error}`;
+                resultDiv.style.color = "red";
+                console.error("Lỗi Fetch:", error);
+            }
+        }
+
+        // --- Hàm xử lý click nút "Dự đoán Ảnh Tải Lên" ---
+        // Hàm này giờ chỉ lấy file từ input và gọi hàm sendImageForPrediction
+       function uploadImage() {
+            const fileInput = document.getElementById('imageUpload');
+            const file = fileInput.files[0];
+            if (!file) { /* ... */ return; }
+             // Ẩn ảnh preview từ URL nếu có
+            fetchedImage.style.display = 'none';
+             // Xóa giá trị input URL
+             imageUrlInput.value = '';
+            sendImageForPrediction(file, file.name);
+        }
+
+
+        // --- Thêm Event listeners cho các ảnh mẫu ---
+        exampleImageItems.forEach(item => {
+            item.addEventListener('click', async function() {
+                const filename = item.getAttribute('data-filename'); // Lấy tên file từ data-filename
+                const imageUrl = item.querySelector('img').src; // Lấy URL của ảnh
+
+                console.log(`Đang xử lý ảnh mẫu: ${filename} từ URL: ${imageUrl}`);
+
+                 // Hiển thị ảnh mẫu đã click vào khu vực preview chính (tùy chọn)
+                 uploadedImage.src = imageUrl;
+                 uploadedImage.style.display = 'block';
+                 resultDiv.innerText = `Đang tải lên và xử lý ảnh "${filename}"...`;
+                 resultDiv.style.color = "#555";
+
+                try {
+                    // Fetch dữ liệu ảnh từ URL
+                    const response = await fetch(imageUrl);
+                    if (!response.ok) {
+                         throw new Error(`Không tải được ảnh mẫu từ ${imageUrl}: ${response.status}`);
+                    }
+                    // Lấy dữ liệu ảnh dưới dạng Blob
+                    const imageBlob = await response.blob();
+
+                    // Tạo một File object từ Blob (FormData có thể gửi Blob, nhưng File object tiện hơn)
+                    const imageFile = new File([imageBlob], filename, { type: imageBlob.type });
+
+                    // Gọi hàm xử lý chính với File object này
+                    sendImageForPrediction(imageFile, filename);
+
+                } catch (error) {
+                    resultDiv.innerText = `Lỗi khi tải ảnh mẫu hoặc xử lý: ${error}`;
+                    resultDiv.style.color = "red";
+                    console.error("Lỗi xử lý ảnh mẫu:", error);
+                }
+            });
+        });
+
+        async function predictImageUrl() {
+            const imageUrl = imageUrlInput.value.trim(); // Lấy URL từ input
+
+            if (!imageUrl) {
+                resultDiv.innerText = "Vui lòng dán URL ảnh vào ô.";
+                resultDiv.style.color = "orange";
+                // Ẩn ảnh preview từ URL nếu có
+                fetchedImage.style.display = 'none'; // <-- Thêm dòng này
+                return;
+            }
+
+            // Hiển thị trạng thái chờ
+            resultDiv.innerText = `Đang gửi URL đến server để xử lý: ${imageUrl}...`; // Thay đổi thông báo
+            resultDiv.style.color = "#555";
+
+            // Ẩn các ảnh preview khác
+            uploadedImage.style.display = 'none'; // <-- Thêm dòng này
+            // exampleImageItems.forEach(item => item.style.border = '2px solid transparent'); // Bỏ highlight ảnh mẫu nếu có
+
+
+            try {
+                // Gửi URL (dưới dạng JSON) đến endpoint MỚI của Backend
+                const response = await fetch('/predict_from_url', { // <-- Gửi đến endpoint mới
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json' // Báo cho Backend biết body là JSON
+                    },
+                    body: JSON.stringify({ image_url: imageUrl }) // Gửi URL dưới dạng JSON
+                });
+
+                // Kiểm tra mã trạng thái HTTP
+                if (!response.ok) {
+                    // Backend trả về lỗi (ví dụ: 400, 500)
+                    const errorData = await response.json().catch(() => ({ error: `Server trả về lỗi ${response.status}, không phân tích được nội dung lỗi.` }));
+                    resultDiv.innerText = `Lỗi Backend (${response.status}): ${errorData.error || 'Lỗi không xác định từ backend'}`;
+                    resultDiv.style.color = "red";
+                    console.error('Lỗi API Backend (/predict_from_url):', response.status, errorData);
+                    // Ẩn ảnh preview từ URL nếu lỗi
+                    fetchedImage.style.display = 'none'; // <-- Thêm dòng này
+                    return;
+                }
+
+                // Nếu response OK (2xx), đọc nội dung JSON (là kết quả dự đoán hoặc lỗi backend đã xử lý)
+                const predictionResult = await response.json();
+
+                // --- BƯỚC Xử lý và hiển thị kết quả dự đoán ---
+                console.log(">>> Frontend nhận được JSON từ /predict_from_url:", predictionResult);
+
+                // Kiểm tra xem kết quả nhận được có phải là kết quả dự đoán thành công không
+                if (predictionResult && predictionResult.predicted_class_name !== undefined) {
+                    // Hiển thị kết quả dự đoán
+                    resultDiv.innerHTML = `Dự đoán: <strong>${predictionResult.predicted_class_name}</strong> (Độ tin cậy: ${predictionResult.confidence_score.toFixed(4)})`;
+                    resultDiv.style.color = "green";
+
+                    // Tải lại ảnh từ URL để hiển thị preview (nếu dự đoán thành công)
+                    try {
+                         const imgFetchResponse = await fetch(imageUrl);
+                         if(imgFetchResponse.ok) {
+                             const imgBlob = await imgFetchResponse.blob();
+                             const reader = new FileReader();
+                             reader.onload = function(e) {
+                                 fetchedImage.src = e.target.result;
+                                 fetchedImage.style.display = 'block'; // Hiện ảnh preview từ URL
+                             }
+                             reader.readAsDataURL(imgBlob);
+                         } else {
+                             console.warn(`Không tải lại được ảnh từ URL để hiển thị preview: ${imageUrl}`);
+                              fetchedImage.style.display = 'none'; // <-- Ẩn nếu không tải được preview
+                         }
+                    } catch(imgPreviewError) {
+                         console.error("Lỗi khi tải lại ảnh từ URL để hiển thị preview:", imgPreviewError);
+                          fetchedImage.style.display = 'none'; // <-- Ẩn nếu lỗi tải preview
+                    }
+
+
+                } else if (predictionResult && predictionResult.error) {
+                     // Nếu backend trả về lỗi có key 'error'
+                     resultDiv.innerText = `Lỗi từ Backend: ${predictionResult.error}`;
+                     resultDiv.style.color = "red";
+                     console.error("Frontend: Nhận lỗi từ Backend:", predictionResult);
+                     // Ẩn ảnh preview từ URL nếu có lỗi
+                     fetchedImage.style.display = 'none'; // <-- Thêm dòng này
+
+                }
+                 else {
+                     // Trường hợp nhận được JSON 200 OK nhưng format không đúng cả kết quả dự đoán lẫn lỗi
+                    resultDiv.innerText = "Lỗi: Backend trả về định dạng phản hồi không mong đợi.";
+                    resultDiv.style.color = "orange";
+                    console.error("Frontend: Định dạng JSON từ Backend không khớp:", predictionResult);
+                     // Ẩn ảnh preview từ URL nếu có lỗi
+                     fetchedImage.style.display = 'none'; // <-- Thêm dòng này
+                }
+
+            } catch (error) {
+                // Bắt các lỗi mạng hoặc lỗi fetch/json parse ở frontend
+                resultDiv.innerText = `Lỗi kết nối hoặc xử lý: ${error.message || error}`;
+                resultDiv.style.color = "red";
+                console.error("Lỗi Fetch URL endpoint:", error);
+                 // Ẩn ảnh preview từ URL nếu lỗi
+                 fetchedImage.style.display = 'none'; // <-- Thêm dòng này
+            }
+        }
+
+    </script>
+
+</body>
+</html>
